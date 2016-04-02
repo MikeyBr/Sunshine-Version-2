@@ -41,3 +41,7 @@ project.properties
 ##Gradle-based build
 .gradle
 build/
+*.gradle
+.gitignore
+./app/build.gradle
+build.gradle

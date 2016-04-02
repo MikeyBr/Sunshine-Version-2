@@ -58,7 +58,6 @@ public class TestUtilities extends AndroidTestCase {
         weatherValues.put(WeatherContract.WeatherEntry.COLUMN_SHORT_DESC, "Asteroids");
         weatherValues.put(WeatherContract.WeatherEntry.COLUMN_WIND_SPEED, 5.5);
         weatherValues.put(WeatherContract.WeatherEntry.COLUMN_WEATHER_ID, 321);
-
         return weatherValues;
     }
 
@@ -73,7 +72,6 @@ public class TestUtilities extends AndroidTestCase {
         testValues.put(WeatherContract.LocationEntry.COLUMN_CITY_NAME, "North Pole");
         testValues.put(WeatherContract.LocationEntry.COLUMN_COORD_LAT, 64.7488);
         testValues.put(WeatherContract.LocationEntry.COLUMN_COORD_LONG, -147.353);
-
         return testValues;
     }
 
@@ -92,7 +90,6 @@ public class TestUtilities extends AndroidTestCase {
 
         // Verify we got a row back.
         assertTrue("Error: Failure to insert North Pole Location Values", locationRowId != -1);
-
         return locationRowId;
     }
 

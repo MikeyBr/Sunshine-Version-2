@@ -23,8 +23,15 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteQueryBuilder;
 import android.net.Uri;
+import android.os.Build;
+import android.util.Log;
+
+import static com.example.android.sunshine.app.data.WeatherContract.*;
+
 
 public class WeatherProvider extends ContentProvider {
+
+
 
     // The URI Matcher used by this content provider.
     private static final UriMatcher sUriMatcher = buildUriMatcher();
@@ -42,6 +49,7 @@ public class WeatherProvider extends ContentProvider {
         
         //This is an inner join which looks like
         //weather INNER JOIN location ON weather.location_id = location._id
+        //.setTables fills out from part of SQL query
         sWeatherByLocationSettingQueryBuilder.setTables(
                 WeatherContract.WeatherEntry.TABLE_NAME + " INNER JOIN " +
                         WeatherContract.LocationEntry.TABLE_NAME +
@@ -68,6 +76,10 @@ public class WeatherProvider extends ContentProvider {
                     "." + WeatherContract.LocationEntry.COLUMN_LOCATION_SETTING + " = ? AND " +
                     WeatherContract.WeatherEntry.COLUMN_DATE + " = ? ";
 
+
+   // private static final String sLocation = WeatherContract.LocationEntry.TABLE_NAME;
+
+
     private Cursor getWeatherByLocationSetting(Uri uri, String[] projection, String sortOrder) {
         String locationSetting = WeatherContract.WeatherEntry.getLocationSettingFromUri(uri);
         long startDate = WeatherContract.WeatherEntry.getStartDateFromUri(uri);
@@ -82,6 +94,30 @@ public class WeatherProvider extends ContentProvider {
             selectionArgs = new String[]{locationSetting, Long.toString(startDate)};
             selection = sLocationSettingWithStartDateSelection;
         }
+
+
+        Cursor ccc =  sWeatherByLocationSettingQueryBuilder.query(mOpenHelper.getReadableDatabase(),
+                projection,
+                selection,
+                selectionArgs,
+                null,
+                null,
+                sortOrder
+        );
+        int ccc_i = ccc.getCount();
+
+         ccc =  sWeatherByLocationSettingQueryBuilder.query(mOpenHelper.getReadableDatabase(),
+                projection,
+                null,
+                null,
+                null,
+                null,
+                sortOrder);
+        ccc_i = ccc.getCount();
+
+
+        debugCursor(ccc);
+
 
         return sWeatherByLocationSettingQueryBuilder.query(mOpenHelper.getReadableDatabase(),
                 projection,
@@ -108,6 +144,45 @@ public class WeatherProvider extends ContentProvider {
         );
     }
 
+
+
+    private Cursor getWeather(Uri uri, String[] projection, String sortOrder) {
+
+        SQLiteQueryBuilder sqLiteQueryBuilder = new SQLiteQueryBuilder();
+        SQLiteDatabase db = mOpenHelper.getReadableDatabase();
+        //projection = null;
+        String selection = null;
+        String[] selectionArgs = null;
+        sqLiteQueryBuilder.setTables(WeatherContract.WeatherEntry.TABLE_NAME);
+        return (sqLiteQueryBuilder.query(db,
+                projection,
+                selection,
+                selectionArgs,
+                null,
+                null,
+                sortOrder));
+    }
+
+
+
+    private Cursor getLocation(Uri uri, String[] projection, String sortOrder) {
+        SQLiteQueryBuilder sqLiteQueryBuilder = new SQLiteQueryBuilder();
+        SQLiteDatabase db = mOpenHelper.getReadableDatabase();
+        //projection = null;
+        String selection = null;
+        String[] selectionArgs = null;
+        sqLiteQueryBuilder.setTables(WeatherContract.LocationEntry.TABLE_NAME);
+        return (sqLiteQueryBuilder.query(db,
+                projection,
+                selection,
+                selectionArgs,
+                null,
+                null,
+                sortOrder));
+    }
+
+
+
     /*
         Students: Here is where you need to create the UriMatcher. This UriMatcher will
         match each URI to the WEATHER, WEATHER_WITH_LOCATION, WEATHER_WITH_LOCATION_AND_DATE,
@@ -118,13 +193,19 @@ public class WeatherProvider extends ContentProvider {
         // 1) The code passed into the constructor represents the code to return for the root
         // URI.  It's common to use NO_MATCH as the code for this case. Add the constructor below.
 
-
+         UriMatcher matcher = new UriMatcher(UriMatcher.NO_MATCH);
         // 2) Use the addURI function to match each of the types.  Use the constants from
         // WeatherContract to help define the types to the UriMatcher.
 
+        matcher.addURI(CONTENT_AUTHORITY, PATH_WEATHER, WEATHER);
+        matcher.addURI(CONTENT_AUTHORITY, PATH_LOCATION, LOCATION);
+        matcher.addURI(CONTENT_AUTHORITY, PATH_WEATHER + "/*/#", WEATHER_WITH_LOCATION_AND_DATE);
+        matcher.addURI(CONTENT_AUTHORITY, PATH_WEATHER + "/*", WEATHER_WITH_LOCATION);
+
+
 
         // 3) Return the new matcher!
-        return null;
+        return matcher;
     }
 
     /*
@@ -150,8 +231,10 @@ public class WeatherProvider extends ContentProvider {
 
         switch (match) {
             // Student: Uncomment and fill out these two cases
-//            case WEATHER_WITH_LOCATION_AND_DATE:
-//            case WEATHER_WITH_LOCATION:
+            case WEATHER_WITH_LOCATION_AND_DATE:
+                return WeatherContract.WeatherEntry.CONTENT_ITEM_TYPE;
+            case WEATHER_WITH_LOCATION:
+                return WeatherContract.WeatherEntry.CONTENT_TYPE;
             case WEATHER:
                 return WeatherContract.WeatherEntry.CONTENT_TYPE;
             case LOCATION:
@@ -181,12 +264,12 @@ public class WeatherProvider extends ContentProvider {
             }
             // "weather"
             case WEATHER: {
-                retCursor = null;
+                retCursor = getWeather(uri,projection,sortOrder);
                 break;
             }
             // "location"
             case LOCATION: {
-                retCursor = null;
+                retCursor = getLocation(uri,projection,sortOrder);
                 break;
             }
 
@@ -196,6 +279,9 @@ public class WeatherProvider extends ContentProvider {
         retCursor.setNotificationUri(getContext().getContentResolver(), uri);
         return retCursor;
     }
+
+
+
 
     /*
         Student: Add the ability to insert Locations to the implementation of this function.
@@ -216,6 +302,14 @@ public class WeatherProvider extends ContentProvider {
                     throw new android.database.SQLException("Failed to insert row into " + uri);
                 break;
             }
+            case LOCATION: {
+                long _id = db.insert(WeatherContract.LocationEntry.TABLE_NAME, null, values);
+                if ( _id > 0 )
+                    returnUri = WeatherContract.LocationEntry.buildLocationUri(_id);
+                else
+                    throw new android.database.SQLException("Failed to insert row into " + uri);
+                break;
+            }
             default:
                 throw new UnsupportedOperationException("Unknown uri: " + uri);
         }
@@ -226,17 +320,48 @@ public class WeatherProvider extends ContentProvider {
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
         // Student: Start by getting a writable database
+        final SQLiteDatabase db = mOpenHelper.getWritableDatabase();
 
         // Student: Use the uriMatcher to match the WEATHER and LOCATION URI's we are going to
         // handle.  If it doesn't match these, throw an UnsupportedOperationException.
+        final int match = sUriMatcher.match(uri);
+        int delete_count;
 
+        switch (match) {
+            case WEATHER: {
+                delete_count = db.delete(WeatherContract.WeatherEntry.TABLE_NAME,selection,selectionArgs);
+                break;
+            }
+            case LOCATION: {
+                delete_count = db.delete(WeatherContract.LocationEntry.TABLE_NAME,selection,selectionArgs);
+                break;
+            }
+            default:
+                throw new UnsupportedOperationException("Unknown uri: " + uri);
+        }
+
+        //Cursor cc = db.query(LocationEntry.TABLE_NAME,null,null,null,null,null,null);
+        //if(cc.moveToFirst()){
+         //   int z = cc.getCount();
+          //  for (int y = 0;y < z;y++) {
+          //      int col = cc.getColumnIndex(LocationEntry.COLUMN_LOCATION_SETTING);
+          //      String ss = cc.getString(col);
+          //      cc.moveToPosition(y);
+          //  }
+
+//        }
+
+
+        if(delete_count != 0) {
+            getContext().getContentResolver().notifyChange(uri, null);
+        }
         // Student: A null value deletes all rows.  In my implementation of this, I only notified
         // the uri listeners (using the content resolver) if the rowsDeleted != 0 or the selection
         // is null.
         // Oh, and you should notify the listeners here.
 
         // Student: return the actual rows deleted
-        return 0;
+        return delete_count;
     }
 
     private void normalizeDate(ContentValues values) {
@@ -252,7 +377,27 @@ public class WeatherProvider extends ContentProvider {
             Uri uri, ContentValues values, String selection, String[] selectionArgs) {
         // Student: This is a lot like the delete function.  We return the number of rows impacted
         // by the update.
-        return 0;
+
+           final SQLiteDatabase db = mOpenHelper.getWritableDatabase();
+           final int match = sUriMatcher.match(uri);
+           int update_count;
+
+        switch (match) {
+            case WEATHER: {
+                update_count = db.update(WeatherContract.WeatherEntry.TABLE_NAME,values,selection,selectionArgs);
+                break;
+            }
+            case LOCATION: {
+                update_count = db.update(WeatherContract.LocationEntry.TABLE_NAME,values,selection,selectionArgs);
+                break;
+            }
+            default:
+                throw new UnsupportedOperationException("Unknown uri: " + uri);
+        }
+        if(update_count != 0) {
+            getContext().getContentResolver().notifyChange(uri, null);
+        }
+        return update_count;
     }
 
     @Override
@@ -276,6 +421,11 @@ public class WeatherProvider extends ContentProvider {
                     db.endTransaction();
                 }
                 getContext().getContentResolver().notifyChange(uri, null);
+
+                Cursor cc = db.query(WeatherContract.WeatherEntry.TABLE_NAME,null,null,null,null,null,null);
+                Log.d("BULK_INSERT","Bulk Insert Cursor");
+                WeatherProvider.debugCursor(cc);
+
                 return returnCount;
             default:
                 return super.bulkInsert(uri, values);
@@ -290,5 +440,67 @@ public class WeatherProvider extends ContentProvider {
     public void shutdown() {
         mOpenHelper.close();
         super.shutdown();
+    }
+
+
+//************************************************************************************************/
+//    Cursor Debugger  - Mike Brown 25th March 2016
+//************************************************************************************************/
+    @TargetApi(Build.VERSION_CODES.HONEYCOMB)
+    static public int debugCursor(Cursor cursor){
+        String CURSOR_DEBUG = "CURSOR DBG";
+        Log.d(CURSOR_DEBUG, "******************** CURSOR DEBUG ************************");
+        Log.d(CURSOR_DEBUG,"Rows " + cursor.getCount() + "   Cols " + cursor.getColumnCount() );
+
+        // Print Column Names
+         if(cursor.getColumnCount() > 0) {
+            String[] col_names_array = cursor.getColumnNames();
+            String col_names = "";
+            for (String s : col_names_array)
+                col_names += s + ", ";
+            Log.d(CURSOR_DEBUG, col_names);
+        }
+        int row_count = cursor.getCount();
+        int col_count = cursor.getColumnCount();
+        String row_data;
+        cursor.moveToFirst();
+        if(row_count > 0) {
+            for (int rowIdx = 0; rowIdx < row_count ; rowIdx++) {
+
+                row_data = "";
+                for (int col_idx = 0; col_idx < col_count ; col_idx++) {
+
+                    switch (cursor.getType(col_idx)) {
+
+                        case Cursor.FIELD_TYPE_STRING:
+                            row_data +=  " ," + cursor.getString(col_idx);
+                            break;
+
+                        case Cursor.FIELD_TYPE_INTEGER:
+                            row_data +=  " ," + cursor.getInt(col_idx);
+                            break;
+
+                        case Cursor.FIELD_TYPE_BLOB:
+                            row_data += " ,BLOB";
+                            break;
+
+                        case Cursor.FIELD_TYPE_FLOAT:
+                            row_data += " ," + cursor.getFloat(col_idx);
+                            break;
+
+                        case Cursor.FIELD_TYPE_NULL:
+                            row_data += " ,NULL";
+                            break;
+
+                        default:
+                            row_data += " ,?????";
+                            break;
+                    }
+                }
+                Log.d(CURSOR_DEBUG,row_data);
+                cursor.moveToNext();
+            }
+        }
+        return cursor.getCount();
     }
 }
